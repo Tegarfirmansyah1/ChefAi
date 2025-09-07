@@ -15,7 +15,7 @@ Chef Chimi - Asisten Resep AI Chef Chimi adalah aplikasi web full-stack canggih 
 ├── .gitignore
 ├── package.json
 └── vercel.json           # File konfigurasi untuk Vercel
-🚀 Cara Menjalankan Proyek (Lokal)PrerequisitesPython 3.9+Node.js & npmVercel CLI: npm install -g vercel(Opsional) LM Studio/Ollama untuk menjalankan model lokal.1. Setup Awal# Klona repository dan masuk ke direktori
+ Cara Menjalankan Proyek (Lokal)PrerequisitesPython 3.9+Node.js & npmVercel CLI: npm install -g vercel(Opsional) LM Studio/Ollama untuk menjalankan model lokal.1. Setup Awal# Klona repository dan masuk ke direktori
 git clone <URL_REPO_ANDA>
 cd ai-chef-vercel
 
