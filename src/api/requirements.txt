@@ -2,5 +2,3 @@ langchain
 langchain-google-genai
 python-dotenv
 langchain-chroma
-langchain-huggingface
-sentence-transformers

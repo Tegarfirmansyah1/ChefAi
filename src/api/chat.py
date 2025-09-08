@@ -4,8 +4,8 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -22,7 +22,7 @@ try:
 
     llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2, google_api_key=os.environ.get("GOOGLE_API_KEY"))
     
-    embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedding_function = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     db = Chroma(persist_directory=DB_PATH, embedding_function=embedding_function)
     base_retriever = db.as_retriever(search_kwargs={"k": 2})
     retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
