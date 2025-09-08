@@ -1,10 +1,8 @@
 import os
-import json
 import traceback
 from http.server import BaseHTTPRequestHandler
-
-# --- Import Pustaka LangChain (tetap sama) ---
-from dotenv import load_dotenv
+from urllib.parse import urlparse, parse_qs
+import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -14,43 +12,22 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.retrievers.multi_query import MultiQueryRetriever
-from langchain_core.runnables import RunnableBranch, RunnableLambda
+from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
 from pathlib import Path
 
-# --- Fungsi Helper (tetap sama) ---
-def extract_intent(llm_output):
-    return llm_output.content.strip()
-
-def get_greeting_response(_):
-    return {"answer": "Halo! Saya Chef Chimi, asisten resep virtual Anda. Ada yang bisa saya bantu?"}
-
-def get_self_intro_response(_):
-    return {"answer": "Saya Chef Chimi! Saya siap membantu Anda menemukan resep masakan Indonesia dari database saya."}
-
-def get_rejection_response(_):
-    return {"answer": "Maaf, sebagai Chef Chimi, saya hanya bisa membahas seputar resep masakan."}
-
-# --- Inisialisasi Komponen AI (tetap sama) ---
-conversational_rag_chain = None
-initialization_error = None
-
 try:
-    load_dotenv()
     print("Menginisialisasi komponen AI...")
-
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        temperature=0.2
-    )
-    print("Terhubung ke model Google AI")
-
     API_DIR = Path(__file__).parent.resolve()
     DB_PATH = str(API_DIR / "db_resep")
+
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2, google_api_key=os.environ.get("GOOGLE_API_KEY"))
+    
     embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     db = Chroma(persist_directory=DB_PATH, embedding_function=embedding_function)
     base_retriever = db.as_retriever(search_kwargs={"k": 2})
     retriever = MultiQueryRetriever.from_llm(retriever=base_retriever, llm=llm)
 
+    # --- 2. BUAT RAG CHAIN UTAMA (seperti sebelumnya) ---
     contextualize_q_prompt = ChatPromptTemplate.from_messages([
         ("system", "Diberikan riwayat obrolan dan pertanyaan lanjutan, tulis ulang pertanyaan tersebut menjadi pertanyaan mandiri."),
         MessagesPlaceholder("chat_history"),
@@ -60,9 +37,12 @@ try:
 
     qa_system_prompt = """
     Anda adalah 'Chef Chimi', seorang asisten resep dari Indonesia.
-    Gunakan HANYA informasi dari 'Konteks Resep' di bawah ini untuk menjawab pertanyaan pengguna.
-    Persona Anda adalah Chef Chimi. JANGAN PERNAH menyebutkan bahwa Anda adalah AI.
-    <context>{context}</context>
+    Gunakan HANYA informasi dari 'Konteks Resep' di bawah ini untuk menjawab pertanyaan pengguna dengan lengkap dan ramah.
+    JANGAN PERNAH menyebutkan bahwa Anda adalah model bahasa atau AI. Persona Anda adalah Chef Chimi.
+
+    <context>
+    {context}
+    </context>
     """
     qa_prompt = ChatPromptTemplate.from_messages([
         ("system", qa_system_prompt),
@@ -71,21 +51,70 @@ try:
     ])
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
-
+    
+    # --- 3. BUAT "PENJAGA GERBANG" DENGAN KATEGORI  ---
     intent_prompt = ChatPromptTemplate.from_messages([
-        ("system", "Klasifikasikan input pengguna ke dalam kategori: 'SAPAAN', 'TENTANG_RESEP', 'TENTANG_DIRI', atau 'DILUAR_TOPIK'. Jawab HANYA dengan nama kategori."),
+        ("system", """
+        Anda adalah classifier yang sangat akurat. Klasifikasikan pertanyaan terakhir pengguna ('input') berdasarkan riwayat obrolan ('chat_history') ke dalam salah satu dari empat kategori berikut: 'SAPAAN', 'TENTANG_RESEP', 'TENTANG_DIRI', atau 'DILUAR_TOPIK'.
+        Jawab HANYA dengan salah satu dari empat kategori tersebut, tanpa penjelasan apa pun.
+
+        --- CONTOH ---
+        Pertanyaan: halo,hello,hai,helo
+        Kategori: SAPAAN
+
+        Pertanyaan: terima kasih banyak
+        Kategori: SAPAAN
+
+        Pertanyaan: siapa kamu?
+        Kategori: TENTANG_DIRI
+
+        Pertanyaan: apa yang bisa kamu lakukan
+        Kategori: TENTANG_DIRI
+
+        Pertanyaan: carikan resep ayam goreng
+        Kategori: TENTANG_RESEP
+
+        Pertanyaan: bagaimana cara membuat nasi goreng?
+        Kategori: TENTANG_RESEP
+
+        Pertanyaan: apa itu pemrograman?
+        Kategori: DILUAR_TOPIK
+
+        Pertanyaan: tolong buatkan saya file html
+        Kategori: DILUAR_TOPIK
+         
+        
+        """),
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ])
-    intent_chain = intent_prompt | llm | RunnableLambda(extract_intent)
+    intent_chain = intent_prompt | llm | RunnableLambda(lambda x: x.content.strip())
 
-    full_system_chain = RunnableBranch(
-        (lambda x: "SAPAAN" in intent_chain.invoke(x), RunnableLambda(get_greeting_response)),
-        (lambda x: "TENTANG_DIRI" in intent_chain.invoke(x), RunnableLambda(get_self_intro_response)),
-        (lambda x: "DILUAR_TOPIK" in intent_chain.invoke(x), RunnableLambda(get_rejection_response)),
-        rag_chain
+    # --- 4. GABUNGKAN SEMUANYA DENGAN LOGIKA 4 PERCABANGAN ---
+    greeting_chain = RunnableLambda(
+        lambda x: {"answer": "Halo! Saya Chef Chimi, asisten resep virtual Anda. Ada yang bisa saya bantu?"}
+    )
+    self_intro_chain = RunnableLambda(
+        lambda x: {"answer": "Saya Chef Chimi! Saya siap membantu Anda menemukan resep masakan Indonesia dari database saya."}
+    )
+    rejection_chain = RunnableLambda(
+        lambda x: {"answer": "Maaf, sebagai Chef Chimi, saya hanya bisa membahas seputar resep masakan."}
     )
 
+    def route(info):
+        intent = intent_chain.invoke(info)
+        if "SAPAAN" in intent:
+            return greeting_chain
+        elif "TENTANG_DIRI" in intent:
+            return self_intro_chain
+        elif "DILUAR_TOPIK" in intent:
+            return rejection_chain
+        else: 
+            return rag_chain
+
+    full_system_chain = RunnableLambda(route)
+
+    # --- 5. Tambahkan Memori ke Sistem Final ---
     chat_history_store = {}
     def get_session_history(session_id: str) -> ChatMessageHistory:
         if session_id not in chat_history_store:
@@ -102,11 +131,14 @@ try:
     print("✅ AI Chef 'Chimi' siap menerima pesanan!")
 
 except Exception as e:
-    initialization_error = f"Gagal menginisialisasi AI: {e}"
-    print(f"❌ {initialization_error}")
+    print("✅ AI Chef Vercel Handler siap.")
+    AI_INITIALIZED = True
+except Exception as e:
+    print(f" Gagal menginisialisasi AI: {e}")
     traceback.print_exc()
+    AI_INITIALIZED = False
 
-# --- Vercel Serverless Function Handler yang Disempurnakan ---
+# --- Handler Utama untuk Vercel ---
 class handler(BaseHTTPRequestHandler):
     
     def do_OPTIONS(self):
@@ -162,3 +194,16 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({"error": f"Terjadi kesalahan: {e}"}).encode('utf-8'))
+
+        try:
+            for chunk in conversational_rag_chain.stream(
+                {"input": question},
+                config={"configurable": {"session_id": session_id}}
+            ):
+                if answer_chunk := chunk.get("answer"):
+                    self.wfile.write(answer_chunk.encode('utf-8'))
+        except Exception as e:
+            print(f"Error saat streaming: {e}")
+            # Tidak bisa mengirim error response di tengah streaming
+            
+        return
