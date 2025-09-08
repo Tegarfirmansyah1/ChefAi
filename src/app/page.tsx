@@ -38,7 +38,7 @@ export default function ChatPage() {
         setMessages(prev => [...prev, { sender: 'ai', text: '' }]);
 
         try {
-              const response = await fetch('/api/chat', {
+              const response = await fetch('https://huggingface.co/spaces/gars11/chef-ai/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question, session_id: sessionId })
