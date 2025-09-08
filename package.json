@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@types/marked": "^6.0.0",
+    "@vercel/speed-insights": "^1.2.0",
     "marked": "^16.2.1",
     "next": "15.5.2",
     "react": "19.1.0",

@@ -1,8 +1,7 @@
 "use client"; 
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { marked } from 'marked';
-
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 interface Message {
     sender: 'user' | 'ai';
@@ -28,6 +27,7 @@ export default function ChatPage() {
         }
     }, [messages]);
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const question = userInput.trim();
@@ -43,7 +43,7 @@ export default function ChatPage() {
     setIsLoading(true);
 
     // Bagian ini tetap sama
-    const response = await fetch(apiUrl, {
+    const response = await fetch('https://gars11-chef-ai.hf.space/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, session_id: sessionId })
