@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { marked } from 'marked';
 
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+
 interface Message {
     sender: 'user' | 'ai';
     text: string;
@@ -36,45 +38,41 @@ export default function ChatPage() {
         setIsLoading(true);
 
         setMessages(prev => [...prev, { sender: 'ai', text: '' }]);
+        
+    try {
+    setIsLoading(true);
 
-        try {
-              const response = await fetch('https://gars11-chef-ai.hf.space/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, session_id: sessionId })
-            });
+    // Bagian ini tetap sama
+    const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, session_id: sessionId })
+    });
 
-            if (!response.ok || !response.body) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                const chunk = decoder.decode(value, { stream: true });
-                
-                setMessages(prev => {
-                    const lastMessage = prev[prev.length - 1];
-                    const updatedText = lastMessage.text + chunk;
-                    return [...prev.slice(0, -1), { ...lastMessage, text: updatedText }];
-                });
-            }
 
-        } catch (error) {
-            console.error('Error fetching AI response:', error);
-            setMessages(prev => {
-                const lastMessage = prev[prev.length - 1];
-                const errorText = '<span class="text-red-500">Maaf, terjadi kesalahan. Coba ajukan pertanyaan lagi.</span>';
-                return [...prev.slice(0, -1), { ...lastMessage, text: errorText }];
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const data = await response.json();
+
+    const aiResponseText = data.answer;
+
+    setMessages(prev => [
+        ...prev,
+        { sender: 'ai', text: aiResponseText, isUser: false },
+    ]);
+
+    } catch (error) {
+    console.error('Error fetching AI response:', error);
+    setMessages(prev => [
+        ...prev,
+        { sender: 'ai', text: 'Maaf, Chef Chimi sedang sibuk. Coba lagi nanti.', isUser: false },
+    ]);
+    } finally {
+    setIsLoading(false);
+    setUserInput(''); 
+    }
 
     const renderHTML = (text: string) => {
         return { __html: marked.parse(text) };
@@ -138,4 +136,5 @@ export default function ChatPage() {
             </footer>
         </div>
     );
+}
 }
