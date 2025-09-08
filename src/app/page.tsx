@@ -9,7 +9,7 @@ interface Message {
 
 export default function ChatPage() {
     const [messages, setMessages] = useState<Message[]>([
-    { sender: 'ai', text: '<span class="text-gray-900"> Halo! Saya AI Chef, asisten resep pribadimu. Tanyakan apa saja tentang masakan Indonesia!' }
+    { sender: 'ai', text: '<span class="text-gray-900"> Halo! Saya AI Chef, asisten resep pribadimu. Tanyakan apa saja tentang masakan !' }
     ]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +38,7 @@ export default function ChatPage() {
         setMessages(prev => [...prev, { sender: 'ai', text: '' }]);
 
         try {
-              const response = await fetch('/api/chat', {
+              const response = await fetch('/api', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question, session_id: sessionId })
