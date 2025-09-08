@@ -3,63 +3,41 @@
 Chef Chimi adalah aplikasi web full-stack canggih yang berfungsi sebagai asisten resep masakan Indonesia. Dibangun dengan arsitektur RAG (Retrieval-Augmented Generation), aplikasi ini mampu memberikan jawaban yang akurat berdasarkan database resep yang dinamis, serta dapat berinteraksi dengan pengguna secara kontekstual layaknya asisten sungguhan. Proyek ini dirancang untuk di-deploy sebagai satu kesatuan di Vercel.
 
 # Fitur Utama
-Percakapan Kontekstual: Dilengkapi dengan memori, Chef Chimi mampu memahami pertanyaan lanjutan dan menjaga alur percakapan.
+- Percakapan Kontekstual: Dilengkapi dengan memori, Chef Chimi mampu memahami pertanyaan lanjutan dan menjaga alur percakapan.
 
-Arsitektur RAG Canggih: Jawaban dihasilkan berdasarkan database resep yang relevan, meminimalkan halusinasi dan memastikan akurasi.
+- Arsitektur RAG Canggih: Jawaban dihasilkan berdasarkan database resep yang relevan, meminimalkan halusinasi dan memastikan akurasi.
 
-Persona & Keamanan Terkunci: Menggunakan arsitektur "Penjaga Gerbang" (Gatekeeper) untuk mendeteksi niat pengguna, menolak permintaan di luar topik, dan menjaga persona AI sebagai koki.
+- Persona & Keamanan Terkunci: Menggunakan arsitektur "Penjaga Gerbang" (Gatekeeper) untuk mendeteksi niat pengguna, menolak permintaan di luar topik, dan menjaga persona AI sebagai koki.
 
-Database Dinamis: Database resep dibangun menggunakan web scraper (Selenium & BeautifulSoup) yang dapat diperbarui secara otomatis.
+- Database Dinamis: Database resep dibangun menggunakan web scraper (Selenium & BeautifulSoup) yang dapat diperbarui secara otomatis.
 
-Antarmuka Modern: UI chat yang responsif dan interaktif dibangun dengan Next.js dan Tailwind CSS, dengan fitur streaming untuk respons AI.
+- Antarmuka Modern: UI chat yang responsif dan interaktif dibangun dengan Next.js dan Tailwind CSS, dengan fitur streaming untuk respons AI.
 
-Fleksibilitas Model: Dirancang untuk dapat beralih antara model AI lokal (untuk pengembangan) dan model berbasis API (Google Gemini) untuk produksi.
+- Fleksibilitas Model: Dirancang untuk dapat beralih antara model AI lokal (untuk pengembangan) dan model berbasis API (Google Gemini) untuk produksi.
 
 # Teknologi yang Digunakan
-##Frontend
-Framework: Next.js (React)
+## Frontend
+- Framework: Next.js (React)
 
-Bahasa: TypeScript
+- Bahasa: TypeScript
 
-Styling: Tailwind CSS
+- Styling: Tailwind CSS
 
-##Backend
-Runtime: Vercel Serverless Functions
+## Backend
+- Runtime: Vercel Serverless Functions
 
-Bahasa: Python
+- Bahasa: Python
 
-Framework API: FastAPI
+- Framework API: FastAPI
 
-Orkestrasi AI: LangChain
+- Orkestrasi AI: LangChain
 
-Model LLM: Gemma (Lokal) / Google Gemini API (Produksi)
+- Model LLM: Gemma (Lokal) / Google Gemini API (Produksi)
 
-Vector Database: ChromaDB
+- Vector Database: ChromaDB
 
-Web Scraping: Selenium, BeautifulSoup4
+- Web Scraping: Selenium, BeautifulSoup4
 
-# Struktur Direktori
-Proyek ini menggunakan struktur monorepo yang menempatkan kode backend Python di dalam direktori src/api, memungkinkan frontend dan backend di-deploy bersamaan di Vercel.
-
-/
-├── src/
-│   ├── api/                # Folder khusus untuk backend Python
-│   │   ├── index.py        # File FastAPI utama (entrypoint)
-│   │   ├── bangun_database.py
-│   │   ├── scraper.py
-│   │   ├── main_scraper.py
-│   │   ├── db_resep/         # Database vektor
-│   │   ├── resep/            # Kumpulan resep dalam format .txt
-│   │   └── requirements.txt  # Dependensi Python
-│   │
-│   └── app/                # Folder inti dari Next.js (frontend)
-│       └── page.tsx
-│
-├── public/
-├── .env.local              # File API key untuk development
-├── .gitignore
-├── package.json
-└── vercel.json             # File konfigurasi untuk Vercel
 
 # Cara Menjalankan Proyek (Lokal)
 Prerequisites
@@ -82,7 +60,7 @@ npm install
 
 Install Dependensi Backend
 
-# Pastikan Anda sudah membuat dan mengaktifkan virtual environment
+Pastikan Anda sudah membuat dan mengaktifkan virtual environment
 pip install -r src/api/requirements.txt
 
 Atur Environment Variable
@@ -98,5 +76,5 @@ python src/api/bangun_database.py
 2. Menjalankan Server Development
 Vercel CLI memungkinkan kita menjalankan frontend dan backend secara bersamaan.
 
-# Jalankan dari folder utama proyek
+Jalankan dari folder utama proyek
 vercel dev
