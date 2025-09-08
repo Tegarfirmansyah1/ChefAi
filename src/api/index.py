@@ -12,6 +12,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
 from pathlib import Path
 
 try:
