@@ -2,8 +2,6 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { marked } from 'marked';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-
 interface Message {
     sender: 'user' | 'ai';
     text: string;
@@ -11,7 +9,7 @@ interface Message {
 
 export default function ChatPage() {
     const [messages, setMessages] = useState<Message[]>([
-    { sender: 'ai', text: '<span class="text-gray-900"> Halo! Saya AI Chef, asisten resep pribadimu. Tanyakan apa saja tentang masakan !' }
+    { sender: 'ai', text: '<span class="text-gray-900"> Halo! Saya AI Chef, asisten resep pribadimu. Tanyakan apa saja tentang masakan Indonesia!' }
     ]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -38,58 +36,49 @@ export default function ChatPage() {
         setIsLoading(true);
 
         setMessages(prev => [...prev, { sender: 'ai', text: '' }]);
-        
-    try {
-      // --- PERUBAHAN UTAMA: Gunakan URL relatif ---
-      const response = await fetch(apiUrl, { // <-- URL diubah di sini
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question:userInput, session_id: sessionId }),
-      });
-      // ----------------------------------------
 
-      if (!response.ok || !response.body) {
-        throw new Error('Network response was not ok.');
-      }
+        try {
+              const response = await fetch('https://gars11-chef-ai.hf.space/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, session_id: sessionId })
+            });
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
+            if (!response.ok || !response.body) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        const chunk = decoder.decode(value, { stream: true });
-        
-        setMessages((prev) => {
-          const lastMessage = prev[prev.length - 1];
-          if (lastMessage && lastMessage.sender === 'ai') {
-            const updatedLastMessage = { ...lastMessage, text: lastMessage.text + chunk };
-            return [...prev.slice(0, -1), updatedLastMessage];
-          }
-          return prev;
-        });
-      }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                
+                setMessages(prev => {
+                    const lastMessage = prev[prev.length - 1];
+                    const updatedText = lastMessage.text + chunk;
+                    return [...prev.slice(0, -1), { ...lastMessage, text: updatedText }];
+                });
+            }
 
-    } catch (error) {
-      console.error('Fetch error:', error);
-      setMessages((prev) => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.sender === 'ai') {
-          const updatedLastMessage = { ...lastMessage, text: 'Maaf, terjadi kesalahan. Coba lagi nanti.' };
-          return [...prev.slice(0, -1), updatedLastMessage];
+        } catch (error) {
+            console.error('Error fetching AI response:', error);
+            setMessages(prev => {
+                const lastMessage = prev[prev.length - 1];
+                const errorText = '<span class="text-red-500">Maaf, terjadi kesalahan. Coba ajukan pertanyaan lagi.</span>';
+                return [...prev.slice(0, -1), { ...lastMessage, text: errorText }];
+            });
+        } finally {
+            setIsLoading(false);
         }
-        return prev;
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  const renderHTML = (text: string) => {
-    const rawMarkup = marked.parse(text, { breaks: true });
-    return { __html: rawMarkup };
-  };
+    const renderHTML = (text: string) => {
+        return { __html: marked.parse(text) };
+    };
 
     return (
         <div className="bg-gray-100 flex flex-col h-screen font-sans">
