@@ -1,10 +1,8 @@
 import os
 import traceback
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -14,31 +12,15 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.retrievers.multi_query import MultiQueryRetriever
-from langchain_core.runnables import RunnableBranch, RunnableLambda
 from pathlib import Path
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 try:
-    load_dotenv()
     print("Menginisialisasi komponen AI...")
-
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        temperature=0.2
-    )
-    print("Terhubung ke model di LM Studio")
-
-    # --- Inisialisasi komponen RAG lainnya ---
     API_DIR = Path(__file__).parent.resolve()
     DB_PATH = str(API_DIR / "db_resep")
+
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2, google_api_key=os.environ.get("GOOGLE_API_KEY"))
+    
     embedding_function = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     db = Chroma(persist_directory=DB_PATH, embedding_function=embedding_function)
     base_retriever = db.as_retriever(search_kwargs={"k": 2})
@@ -145,38 +127,55 @@ try:
         history_messages_key="chat_history",
         output_messages_key="answer",
     )
-    print("✅ AI Chef 'Chimi' (V4.9) siap menerima pesanan!")
+    print("✅ AI Chef 'Chimi' siap menerima pesanan!")
 
+except Exception as e:
+    print("✅ AI Chef Vercel Handler siap.")
+    AI_INITIALIZED = True
 except Exception as e:
     print(f" Gagal menginisialisasi AI: {e}")
     traceback.print_exc()
-    conversational_rag_chain = None
+    AI_INITIALIZED = False
 
-class ChatRequest(BaseModel):
-    question: str
-    session_id: str
+# --- Handler Utama untuk Vercel ---
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if not AI_INITIALIZED:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "AI tidak berhasil diinisialisasi"}).encode('utf-8'))
+            return
 
-@app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest):
-    if not conversational_rag_chain:
-        return JSONResponse(status_code=500, content={"error": "AI tidak berhasil diinisialisasi"})
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        data = json.loads(post_data)
 
-    try:
-        async def stream_generator():
-            full_response = ""
-            async for chunk in conversational_rag_chain.astream(
-                {"input": request.question},
-                config={"configurable": {"session_id": request.session_id}}
+        question = data.get('question')
+        session_id = data.get('session_id')
+
+        if not question or not session_id:
+            self.send_response(400)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Pertanyaan atau session_id tidak ada"}).encode('utf-8'))
+            return
+
+        self.send_response(200)
+        self.send_header('Content-type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_header('Connection', 'keep-alive')
+        self.end_headers()
+
+        try:
+            for chunk in conversational_rag_chain.stream(
+                {"input": question},
+                config={"configurable": {"session_id": session_id}}
             ):
                 if answer_chunk := chunk.get("answer"):
-                    full_response += answer_chunk
-                    yield answer_chunk
-        
-        return StreamingResponse(stream_generator(), media_type="text/event-stream")
-
-    except Exception as e:
-        print("\n--- ERROR SAAT REQUEST CHAT ---")
-        traceback.print_exc()
-        print("---------------------------------")
-        return JSONResponse(status_code=500, content={"error": f"Terjadi kesalahan saat memproses permintaan: {e}"})
-
+                    self.wfile.write(answer_chunk.encode('utf-8'))
+        except Exception as e:
+            print(f"Error saat streaming: {e}")
+            # Tidak bisa mengirim error response di tengah streaming
+            
+        return

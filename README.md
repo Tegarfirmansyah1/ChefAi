@@ -28,8 +28,6 @@ Chef Chimi adalah aplikasi web full-stack canggih yang berfungsi sebagai asisten
 
 - Bahasa: Python
 
-- Framework API: FastAPI
-
 - Orkestrasi AI: LangChain
 
 - Model LLM: Gemma (Lokal) / Google Gemini API (Produksi)
