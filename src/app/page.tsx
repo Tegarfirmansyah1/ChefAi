@@ -1,7 +1,8 @@
 "use client"; 
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { marked } from 'marked';
-import { SpeedInsights } from "@vercel/speed-insights/next"
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Message {
     sender: 'user' | 'ai';
@@ -27,7 +28,6 @@ export default function ChatPage() {
         }
     }, [messages]);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const question = userInput.trim();
@@ -40,43 +40,56 @@ export default function ChatPage() {
         setMessages(prev => [...prev, { sender: 'ai', text: '' }]);
         
     try {
-    setIsLoading(true);
+      // --- PERUBAHAN UTAMA: Gunakan URL relatif ---
+      const response = await fetch(apiUrl, { // <-- URL diubah di sini
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question:userInput, session_id: sessionId }),
+      });
+      // ----------------------------------------
 
-    // Bagian ini tetap sama
-    const response = await fetch('https://gars11-chef-ai.hf.space/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, session_id: sessionId })
-    });
+      if (!response.ok || !response.body) {
+        throw new Error('Network response was not ok.');
+      }
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
 
-
-    const data = await response.json();
-
-    const aiResponseText = data.answer;
-
-    setMessages(prev => [
-        ...prev,
-        { sender: 'ai', text: aiResponseText, isUser: false },
-    ]);
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        const chunk = decoder.decode(value, { stream: true });
+        
+        setMessages((prev) => {
+          const lastMessage = prev[prev.length - 1];
+          if (lastMessage && lastMessage.sender === 'ai') {
+            const updatedLastMessage = { ...lastMessage, text: lastMessage.text + chunk };
+            return [...prev.slice(0, -1), updatedLastMessage];
+          }
+          return prev;
+        });
+      }
 
     } catch (error) {
-    console.error('Error fetching AI response:', error);
-    setMessages(prev => [
-        ...prev,
-        { sender: 'ai', text: 'Maaf, Chef Chimi sedang sibuk. Coba lagi nanti.', isUser: false },
-    ]);
+      console.error('Fetch error:', error);
+      setMessages((prev) => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.sender === 'ai') {
+          const updatedLastMessage = { ...lastMessage, text: 'Maaf, terjadi kesalahan. Coba lagi nanti.' };
+          return [...prev.slice(0, -1), updatedLastMessage];
+        }
+        return prev;
+      });
     } finally {
-    setIsLoading(false);
-    setUserInput(''); 
+      setIsLoading(false);
     }
+  };
 
-    const renderHTML = (text: string) => {
-        return { __html: marked.parse(text) };
-    };
+  const renderHTML = (text: string) => {
+    const rawMarkup = marked.parse(text, { breaks: true });
+    return { __html: rawMarkup };
+  };
 
     return (
         <div className="bg-gray-100 flex flex-col h-screen font-sans">
@@ -136,5 +149,4 @@ export default function ChatPage() {
             </footer>
         </div>
     );
-}
 }
